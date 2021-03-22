@@ -1,9 +1,3 @@
-
---def simp (e : Expr) (ctx : Simp.Context) : MetaM Simp.Result := do profileitM Exception "simp" (← getOptions) do
---  Simp.main e ctx (methods := Simp.DefaultMethods.methods)
-
-import Lean.Meta
-
 import Lean.Elab.Frontend
 
 open Lean
@@ -20,7 +14,6 @@ def binAddBench (n:Nat) : MetaM Unit := do
   for i in [0:n] do
     r := mkApp (mkApp p r) r
   let r ← Lean.Meta.reduce r
---  monadLift $ IO.println s!"Result {r}"
   pure ()
 
 open IO
@@ -58,8 +51,13 @@ def benchmark (fname:String) (testName:String) (action:MetaM Unit) : IO Unit := 
     | Except.ok _ => pure ()
 
 def main (args:List String) : IO Unit := do
-  Lean.initSearchPath (some "/Users/jhendrix/.elan/toolchains/leanprover-lean4-nightly-2021-03-14/lib/lean")
-  benchmark "environments/initial.lean" "Binary add   30" (binAddBench   30)
-  benchmark "environments/initial.lean" "Binary add   60" (binAddBench   60)
-  benchmark "environments/initial.lean" "Binary add  200" (binAddBench  200)
-  benchmark "environments/initial.lean" "Binary add 2000" (binAddBench 2000)
+  match args with
+  | [path] => do
+      Lean.initSearchPath (some path)
+      benchmark "environments/initial.lean" "Binary add   30" (binAddBench   30)
+      benchmark "environments/initial.lean" "Binary add   60" (binAddBench   60)
+      benchmark "environments/initial.lean" "Binary add  200" (binAddBench  200)
+      benchmark "environments/initial.lean" "Binary add 2000" (binAddBench 2000)
+  | _ => do
+    IO.println "Please provide path to standard library, For example:"
+    IO.println "  ./build/bin/Bench $HOME/.elan/toolchains/leanprover-lean4-nightly-2021-03-14/lib/lean"
