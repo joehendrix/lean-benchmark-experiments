@@ -33,14 +33,4 @@ extern "C" lean_obj_res leanclock_io_timeit(lean_obj_arg fn, lean_obj_arg w) {
 
     lean_ctor_set(fr, 0, r);
     return fr;
-/*
-x_4 = lean_alloc_ctor(0, 2, 0);
-lean_ctor_set(x_4, 0, x_2);
-lean_ctor_set(x_4, 1, x_3);
-return x_4;
-
-
-    lean_ctor_set(w, 0, r);
-    return w;*/
-
 }

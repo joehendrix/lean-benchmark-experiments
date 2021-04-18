@@ -70,7 +70,7 @@ def benchmarkC (fname:String) (testName:String) (action:MetaM Unit) : IO Unit :=
       IO.println s!"  Error: {←msg.toMessageData.toString}"
     | Except.ok _ => pure ()
 
-@[extern "leanclock_io_timeit"] constant timeit2 (fn : IO α) : IO (α × UInt64)
+@[extern "leanclock_io_timeit"] constant cppTime (fn : IO α) : IO (α × UInt64)
 
 -- This outputs how long it takes to run the given meta option in the
 -- context created from the filename.
@@ -82,7 +82,28 @@ def benchmarkCPP (fname:String) (testName:String) (action:MetaM Unit) : IO Unit 
       IO.print s!"  {← msg.toString (includeEndPos := Lean.Elab.getPrintMessageEndPos {})}"
   else
     IO.print s!"{testName} "
-    let (a,t) ← timeit2 (action.run.run {} {env := env}).toIO'
+    let (a,t) ← cppTime (action.run.run {} {env := env}).toIO'
+    let musecFrac := s!"{t%1000}"
+    let musecPadding := "".pushn '0' (3 - musecFrac.length)
+    IO.println s!"{t/1000}.{musecPadding}{musecFrac}"
+    match a with
+    | Except.error msg => do
+      IO.println s!"  Error: {←msg.toMessageData.toString}"
+    | Except.ok _ => pure ()
+
+@[extern "leanclock_io_rusttime"] constant rustTime (fn : IO α) : IO (α × UInt64)
+
+-- This outputs how long it takes to run the given meta option in the
+-- context created from the filename.
+def benchmarkRust (fname:String) (testName:String) (action:MetaM Unit) : IO Unit := do
+  let (msgs, env) ← environmentFromFile fname "Test"
+  if (← msgs.hasErrors) then
+    IO.println s!"Errors loading {fname}..."
+    for msg in msgs.toList do
+      IO.print s!"  {← msg.toString (includeEndPos := Lean.Elab.getPrintMessageEndPos {})}"
+  else
+    IO.print s!"{testName} "
+    let (a,t) ← rustTime (action.run.run {} {env := env}).toIO'
     let musecFrac := s!"{t%1000}"
     let musecPadding := "".pushn '0' (3 - musecFrac.length)
     IO.println s!"{t/1000}.{musecPadding}{musecFrac}"
@@ -106,7 +127,7 @@ def benchmarkOrig (fname:String) (testName:String) (action:MetaM Unit) : IO Unit
       IO.println s!"  Error: {←msg.toMessageData.toString}"
     | Except.ok _ => pure ()
 
-def benchmark := benchmarkCPP
+def benchmark := benchmarkRust
 
 def main (args:List String) : IO Unit := do
   match args with

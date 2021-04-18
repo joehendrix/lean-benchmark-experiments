@@ -1,0 +1,16 @@
+[package]
+name = "clocklean"
+version = "0.1.0"
+authors = ["Joe Hendrix <jhendrix@galois.com>"]
+edition = "2018"
+
+[lib]
+name = "clocklean"
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = "0.2"
+
+[features]
+LEAN_SMALL_ALLOCATOR = []
+LEAN_COMPRESSED_OBJECT_HEADER_SMALL_RC = []
