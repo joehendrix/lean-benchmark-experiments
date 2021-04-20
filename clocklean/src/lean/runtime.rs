@@ -191,8 +191,7 @@ pub unsafe fn lean_set_st_header(o: *mut Object, tag: u8, other: u16) {
 
 #[cfg(feature = "LEAN_COMPRESSED_OBJECT_HEADER_SMALL_RC")]
 pub unsafe fn lean_set_st_header(o: *mut Object, tag: u8, other: u16) {
-    (*o).header =
-        (tag as u64) << 56 | (other as u64) << 48 | (LEAN_ST_MEM_KIND as u64) << 40 | 1;
+    (*o).header = (tag as u64) << 56 | (other as u64) << 48 | (LEAN_ST_MEM_KIND as u64) << 40 | 1;
 }
 
 #[cfg(not(feature = "LEAN_COMPRESSED_OBJECT_HEADER_SMALL_RC"))]
@@ -203,11 +202,7 @@ pub unsafe fn lean_set_st_header(o: *mut Object, tag: u8, other: u16) {
     (*o).other = other;
 }
 
-pub fn lean_alloc_ctor(
-    tag: libc::c_uint,
-    num_objs: c_uint,
-    scalar_sz: c_uint,
-) -> *mut Object {
+pub fn lean_alloc_ctor(tag: libc::c_uint, num_objs: c_uint, scalar_sz: c_uint) -> *mut Object {
     unsafe {
         let o = lean_alloc_ctor_memory(
             std::mem::size_of::<CtorObject>() as u32

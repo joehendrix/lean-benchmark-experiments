@@ -1,31 +1,49 @@
 pub mod runtime;
+use crate::lean::runtime::*;
+use std::marker::PhantomData;
 
 pub trait LeanObject {
     // Get the object without incrementing reference count.
-    fn acquire(o: *mut runtime::Object) -> Self
+    // Note. This code requires that the object is a valid non-null object.
+    unsafe fn acquire(o: *mut Object) -> Self
     where
         Self: Sized;
     // Release the object without decrementing reference count.
-    fn release(self) -> *mut runtime::Object;
+    fn release(self) -> *mut Object;
 }
 
+// Provides a wrapper around a bare Lean object pointer that
+// implements reference counting.
 pub struct LeanRepr<T> {
-    ptr: *mut runtime::Object,
+    ptr: *mut Object,
     phantom: PhantomData<T>,
 }
 
 impl<T> Drop for LeanRepr<T> {
     fn drop(&mut self) {
         unsafe {
-            if (self.ptr as *const usize) != std::ptr::null() {
+            if (self.ptr as *const Object) != std::ptr::null() {
                 lean_dec(self.ptr);
             }
         }
     }
 }
 
+impl<T> Clone for LeanRepr<T> {
+    fn clone(&self) -> Self {
+        unsafe {
+            lean_inc(self.ptr);
+        }
+        Self {
+            ptr: self.ptr,
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<T> LeanObject for LeanRepr<T> {
-    fn acquire(o: *mut runtime::Object) -> Self {
+    unsafe fn acquire(o: *mut runtime::Object) -> Self {
+        assert!((o as *const Object) != std::ptr::null());
         Self {
             ptr: o,
             phantom: PhantomData,
@@ -33,17 +51,28 @@ impl<T> LeanObject for LeanRepr<T> {
     }
     fn release(mut self) -> *mut runtime::Object {
         let p = self.ptr;
-        // Null poiner so call to drop will not free it.
+        // Null pointer so call to LeanRepr::drop will not free it.
         self.ptr = std::ptr::null::<runtime::Object>() as *mut runtime::Object;
         p
     }
 }
 
-pub mod estatem {
+// A marker type for a Lean type whose internals are hidden
+// from Rust.
+pub struct Opague(LeanRepr<()>);
+impl LeanObject for Opague {
+    unsafe fn acquire(o: *mut Object) -> Self {
+        Self(LeanRepr::acquire(o))
+    }
+    fn release(self) -> *mut Object {
+        self.0.release()
+    }
+}
 
+pub mod estatem {
+    use super::LeanRepr;
     use crate::lean::runtime::*;
-    use crate::lean::LeanObject;
-    use crate::lean::LeanRepr;
+    use crate::LeanObject;
 
     //inductive Result (ε σ α : Type u) where
     //  | ok    : α → σ → Result ε σ α
@@ -56,7 +85,7 @@ pub mod estatem {
     pub struct Result<E, S, A>(LeanRepr<ResultPat<E, S, A>>);
 
     impl<E, S, A> LeanObject for Result<E, S, A> {
-        fn acquire(o: *mut Object) -> Self {
+        unsafe fn acquire(o: *mut Object) -> Self {
             Self(LeanRepr::acquire(o))
         }
         fn release(self) -> *mut Object {
@@ -110,34 +139,31 @@ pub mod estatem {
 
 use estatem::Result;
 
-pub struct Realworld(LeanRepr<()>);
-
-impl LeanObject for Realworld {
-    fn acquire(o: *mut Object) -> Self {
-        Self(LeanRepr::acquire(o))
-    }
-    fn release(self) -> *mut Object {
-        self.0.release()
-    }
-}
-
 pub struct IOError(LeanRepr<()>);
 
 impl LeanObject for IOError {
-    fn acquire(o: *mut Object) -> Self {
+    unsafe fn acquire(o: *mut Object) -> Self {
         Self(LeanRepr::acquire(o))
     }
     fn release(self) -> *mut Object {
         self.0.release()
     }
 }
-
-use std::marker::PhantomData;
 
 pub struct IO<A>(LeanRepr<A>);
 
 impl<A> LeanObject for IO<A> {
-    fn acquire(o: *mut Object) -> Self {
+    unsafe fn acquire(o: *mut Object) -> Self {
+        Self(LeanRepr::acquire(o))
+    }
+    fn release(self) -> *mut Object {
+        self.0.release()
+    }
+}
+
+pub struct IORealworld(LeanRepr<()>);
+impl LeanObject for IORealworld {
+    unsafe fn acquire(o: *mut Object) -> Self {
         Self(LeanRepr::acquire(o))
     }
     fn release(self) -> *mut Object {
@@ -146,7 +172,7 @@ impl<A> LeanObject for IO<A> {
 }
 
 impl<A> IO<A> {
-    pub fn apply(self, rw: Realworld) -> Result<IOError, Realworld, A> {
+    pub fn apply(self, rw: IORealworld) -> Result<IOError, IORealworld, A> {
         unsafe {
             let actp = self.release();
             let ptr = runtime::lean_apply_1(actp, rw.release());
@@ -158,10 +184,8 @@ impl<A> IO<A> {
 
 pub struct Pair<A, B>(LeanRepr<(A, B)>);
 
-use crate::lean::runtime::*;
-
 impl<A, B> LeanObject for Pair<A, B> {
-    fn acquire(o: *mut Object) -> Self {
+    unsafe fn acquire(o: *mut Object) -> Self {
         Self(LeanRepr::acquire(o))
     }
     fn release(self) -> *mut Object {
@@ -194,15 +218,16 @@ impl<A: LeanObject, B: LeanObject> Pair<A, B> {
 pub struct BoxedUInt64(LeanRepr<u64>);
 
 impl LeanObject for BoxedUInt64 {
-    fn acquire(o: *mut Object) -> Self {
+    unsafe fn acquire(o: *mut Object) -> Self {
         Self(LeanRepr::acquire(o))
     }
     fn release(self) -> *mut Object {
         self.0.release()
     }
 }
+
 impl BoxedUInt64 {
     pub fn mk(x: u64) -> Self {
-        BoxedUInt64::acquire(runtime::lean_box_uint64(x))
+        unsafe { BoxedUInt64::acquire(runtime::lean_box_uint64(x)) }
     }
 }
